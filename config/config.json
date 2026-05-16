@@ -1,0 +1,32 @@
+{
+  "api": {
+    "host": "0.0.0.0",
+    "port": 3000,
+    "authorizations": {
+      "admin": {
+        "authSecret": "bearer:change-me-admin-token",
+        "allowedPaths": ["/api/v0/*"]
+      },
+      "reader": {
+        "authSecret": "bearer:change-me-read-token",
+        "allowedPaths": [
+          "/api/v0/db/get",
+          "/api/v0/db/all",
+          "/api/v0/db/query",
+          "/api/v0/id",
+          "/api/v0/health"
+        ]
+      }
+    }
+  },
+  "libp2p": {
+    "swarmPort": 4001,
+    "bootstrapPeers": []
+  },
+  "orbitdb": {
+    "directory": "./data/orbitdb"
+  },
+  "ipfs": {
+    "directory": "./data/ipfs"
+  }
+}
