@@ -9,8 +9,6 @@ import { identify } from '@libp2p/identify'
 import { bootstrap } from '@libp2p/bootstrap'
 import { mdns } from '@libp2p/mdns'
 import { createOrbitDB } from '@orbitdb/core'
-import { FsBlockstore } from 'blockstore-fs'
-import { FsDatastore } from 'datastore-fs'
 import { getConnectionProtector, isPrivateNetwork } from '../network/pnet.js'
 import {
   MAX_SYNC_CHUNK,
@@ -66,8 +64,8 @@ export async function initOrbitDB(config: Config): Promise<any> {
 
   heliaNode = await createHelia({
     libp2p,
-    blockstore: new FsBlockstore(`${config.ipfs.directory}/blocks`) as any,
-    datastore: new FsDatastore(`${config.ipfs.directory}/datastore`) as any,
+    blockstore: undefined,
+    datastore: undefined,
   })
 
   const did = await createDIDIdentity()
