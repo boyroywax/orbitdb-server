@@ -10,6 +10,7 @@ HTTP RPC API server for OrbitDB v2. Kubo-aligned POST-based API with DID identit
 - DID identity (`did:key` + Ed25519) via `@orbitdb/identity-provider-did`
 - Private network support via pre-shared swarm key (`@libp2p/pnet`)
 - Embedded IPFS (Helia) — no external Kubo node required
+- Pinto v1 sync protocol handler on `/pinto/v1.0.0/sync` (config-gated)
 - Multi-stage Dockerfile for container deployment
 
 ## Quick Start
@@ -45,7 +46,12 @@ Edit `config/config.json`:
   },
   "libp2p": { "swarmPort": 4001, "bootstrapPeers": [] },
   "orbitdb": { "directory": "./data/orbitdb" },
-  "ipfs": { "directory": "./data/ipfs" }
+  "ipfs": { "directory": "./data/ipfs" },
+  "pintoSync": {
+    "enabled": true,
+    "eventsDb": "pinto-v1-events",
+    "instance": "orbitdb-server/0.1.0"
+  }
 }
 ```
 
@@ -57,6 +63,22 @@ Edit `config/config.json`:
 | `SWARM_KEY_PATH` | `./config/swarm.key` | Swarm key path |
 | `DID_KEY_PATH` | `./config/did.key` | DID seed file path |
 | `LIBP2P_FORCE_PNET` | `0` | Set `1` to abort without swarm key |
+
+### Pinto v1 Sync Configuration
+
+`pintoSync` controls whether the libp2p stream handler for Pinto federation sync is registered:
+
+```json
+"pintoSync": {
+  "enabled": true,
+  "eventsDb": "pinto-v1-events",
+  "instance": "orbitdb-server/0.1.0"
+}
+```
+
+- `enabled`: when `true`, registers `/pinto/v1.0.0/sync`; when `false`, no sync stream handler is registered.
+- `eventsDb`: OrbitDB events store name used as the sync source feed.
+- `instance`: instance string returned in sync `hello` envelopes.
 
 ## Authentication
 
@@ -112,6 +134,19 @@ POST /api/v0/pnet/generate  generate new swarm key (does not auto-apply)
 POST /api/v0/id       PeerID, DID, pnet status, addresses
 POST /api/v0/health   liveness (no auth required)
 ```
+
+## Pinto Federation Sync Stream
+
+When `pintoSync.enabled=true`, orbitdb-server also registers a libp2p stream handler on:
+
+- `/pinto/v1.0.0/sync`
+
+Behavior summary:
+
+- Uses NDJSON envelopes matching Pinto v1 wire protocol sync flow (`hello`, `want`, `events`, `error`).
+- Responds to inbound sync requests with bounded event chunks (max 200 items/chunk).
+- Reads from the configured OrbitDB events store (`pintoSync.eventsDb`) and returns newest-first events.
+- Handler registration is explicitly config-gated so operators can disable federation sync without disabling the API server.
 
 ## Examples
 
