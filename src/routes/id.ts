@@ -9,7 +9,7 @@ export async function idRoutes(app: FastifyInstance) {
     if (!helia) return reply.code(503).send({ error: 'Node not ready' })
 
     const did = await createDIDIdentity()
-    const addresses = helia.libp2p.getMultiaddrs().map((ma) => ma.toString())
+    const addresses = helia.libp2p.getMultiaddrs().map((ma: any) => ma.toString())
 
     return {
       peerId: helia.libp2p.peerId.toString(),

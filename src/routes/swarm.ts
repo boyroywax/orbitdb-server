@@ -8,7 +8,7 @@ export async function swarmRoutes(app: FastifyInstance) {
     if (!helia) return reply.code(503).send({ error: 'Node not ready' })
 
     const connections = helia.libp2p.getConnections()
-    const peers = connections.map((conn) => ({
+    const peers = connections.map((conn: any) => ({
       peerId: conn.remotePeer.toString(),
       addr: conn.remoteAddr.toString(),
       direction: conn.direction,
