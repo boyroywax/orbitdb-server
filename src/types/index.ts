@@ -21,6 +21,17 @@ export const ConfigSchema = z.object({
   ipfs: z.object({
     directory: z.string().default('./data/ipfs'),
   }),
+  pintoSync: z
+    .object({
+      enabled: z.boolean().default(true),
+      eventsDb: z.string().default('pinto-v1-events'),
+      instance: z.string().default('orbitdb-server/0.1.0'),
+    })
+    .default({
+      enabled: true,
+      eventsDb: 'pinto-v1-events',
+      instance: 'orbitdb-server/0.1.0',
+    }),
 })
 
 export type Config = z.infer<typeof ConfigSchema>

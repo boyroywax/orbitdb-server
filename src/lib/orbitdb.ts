@@ -3,21 +3,30 @@ import { createLibp2p } from 'libp2p'
 import { tcp } from '@libp2p/tcp'
 import { webSockets } from '@libp2p/websockets'
 import { noise } from '@chainsafe/libp2p-noise'
+import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { identify } from '@libp2p/identify'
 import { bootstrap } from '@libp2p/bootstrap'
 import { mdns } from '@libp2p/mdns'
-import { createOrbitDB, OrbitDB } from '@orbitdb/core'
+import { createOrbitDB } from '@orbitdb/core'
+import { FsBlockstore } from 'blockstore-fs'
+import { FsDatastore } from 'datastore-fs'
 import { getConnectionProtector, isPrivateNetwork } from '../network/pnet.js'
+import {
+  MAX_SYNC_CHUNK,
+  SYNC_PROTOCOL_ID,
+  registerPintoSyncHandler,
+  type SyncEvent,
+} from '../network/pinto-sync.js'
 import { createDIDIdentity } from '../identity/did.js'
 import type { Config } from '../types/index.js'
 
-let orbitdb: OrbitDB | null = null
-let heliaNode: Awaited<ReturnType<typeof createHelia>> | null = null
+let orbitdb: any = null
+let heliaNode: any = null
 
 const openDatabases = new Map<string, any>()
 
-export async function initOrbitDB(config: Config): Promise<OrbitDB> {
+export async function initOrbitDB(config: Config): Promise<any> {
   if (orbitdb) return orbitdb
 
   const connectionProtector = getConnectionProtector()
@@ -34,6 +43,7 @@ export async function initOrbitDB(config: Config): Promise<OrbitDB> {
     streamMuxers: [yamux()],
     services: {
       identify: identify(),
+      pubsub: gossipsub(),
     },
     peerDiscovery: [mdns()],
   }
@@ -56,8 +66,8 @@ export async function initOrbitDB(config: Config): Promise<OrbitDB> {
 
   heliaNode = await createHelia({
     libp2p,
-    blockstore: undefined,
-    datastore: undefined,
+    blockstore: new FsBlockstore(`${config.ipfs.directory}/blocks`) as any,
+    datastore: new FsDatastore(`${config.ipfs.directory}/datastore`) as any,
   })
 
   const did = await createDIDIdentity()
@@ -70,6 +80,48 @@ export async function initOrbitDB(config: Config): Promise<OrbitDB> {
   console.log(`OrbitDB initialized — PeerID: ${heliaNode.libp2p.peerId.toString()}`)
   console.log(`DID: ${did.id}`)
   console.log(`Network mode: ${isPrivateNetwork() ? 'PRIVATE' : 'PUBLIC'}`)
+
+  if (config.pintoSync.enabled) {
+    const readEvents = async (limit: number): Promise<SyncEvent[]> => {
+      const db = await openDatabase(config.pintoSync.eventsDb, 'events')
+      const entries: SyncEvent[] = []
+      for await (const entry of db.iterator()) {
+        const raw = (entry as any)?.value ?? (entry as any)?.payload?.value
+        if (!raw || typeof raw !== 'object') continue
+        const event = raw as SyncEvent
+        if (
+          typeof event.eventId !== 'string' ||
+          typeof event.kind !== 'string' ||
+          typeof event.authorDid !== 'string' ||
+          typeof event.createdAt !== 'string' ||
+          !event.object ||
+          typeof event.object.cid !== 'string'
+        ) {
+          continue
+        }
+        entries.push(event)
+      }
+
+      return entries
+        .sort((a, b) => {
+          if (a.createdAt === b.createdAt) return a.eventId < b.eventId ? 1 : -1
+          return a.createdAt < b.createdAt ? 1 : -1
+        })
+        .slice(0, Math.max(1, Math.min(limit, MAX_SYNC_CHUNK)))
+    }
+
+    registerPintoSyncHandler(libp2p as unknown as { handle: (protocol: string, handler: (ctx: { stream: any }) => Promise<void>) => void }, {
+      readEvents,
+      responderNodeDid: did.id,
+      responderInstance: config.pintoSync.instance,
+    })
+
+    console.log(
+      `Pinto sync handler registered on ${SYNC_PROTOCOL_ID} (eventsDb=${config.pintoSync.eventsDb}, instance=${config.pintoSync.instance})`,
+    )
+  } else {
+    console.log('Pinto sync handler disabled by config (pintoSync.enabled=false)')
+  }
 
   return orbitdb
 }

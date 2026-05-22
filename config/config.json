@@ -28,5 +28,10 @@
   },
   "ipfs": {
     "directory": "./data/ipfs"
+  },
+  "pintoSync": {
+    "enabled": true,
+    "eventsDb": "pinto-v1-events",
+    "instance": "orbitdb-server/0.1.0"
   }
 }
